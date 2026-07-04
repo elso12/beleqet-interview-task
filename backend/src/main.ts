@@ -79,12 +79,13 @@ async function bootstrap() {
   // ── Graceful shutdown ─────────────────────────────────────────────────────
   app.enableShutdownHooks();
 
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   logger.log(`🚀 Beleqet API running on http://localhost:${port}/api/v1`);
   logger.log(`   Environment: ${nodeEnv}`);
 }
 
 bootstrap().catch((err) => {
-  console.error('Fatal startup error:', err);
+  console.error('Fatal startup error:', err?.message ?? err);
+  if (err?.stack) console.error(err.stack);
   process.exit(1);
 });

@@ -47,20 +47,29 @@ import { ContactModule } from './modules/contact/contact.module';
     // ── BullMQ (Redis-backed job queues) ───────────────────────────────────
     BullModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => ({
-        redis: {
-          host: config.get<string>('REDIS_HOST', 'localhost'),
-          port: config.get<number>('REDIS_PORT', 6379),
-          password: config.get<string>('REDIS_PASSWORD'),
-          tls: config.get<boolean>('REDIS_TLS', false) ? {} : undefined,
-        },
-        defaultJobOptions: {
-          removeOnComplete: 100,  // keep last 100 completed jobs
-          removeOnFail: 200,
-          attempts: 3,
-          backoff: { type: 'exponential', delay: 2_000 },
-        },
-      }),
+      useFactory: (config: ConfigService) => {
+        const tlsFlag = config.get<string>('REDIS_TLS', 'false');
+        const useTls = tlsFlag === 'true' || tlsFlag === '1';
+
+        return {
+          redis: {
+            host: config.get<string>('REDIS_HOST', 'localhost'),
+            port: Number(config.get<string>('REDIS_PORT', '6379')),
+            password: config.get<string>('REDIS_PASSWORD') || undefined,
+            tls: useTls ? {} : undefined,
+            // Required for Bull + managed Redis (Upstash, Render)
+            maxRetriesPerRequest: null,
+            enableReadyCheck: false,
+            connectTimeout: 10_000,
+          },
+          defaultJobOptions: {
+            removeOnComplete: 100,
+            removeOnFail: 200,
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 2_000 },
+          },
+        };
+      },
     }),
 
     // ── Feature modules ────────────────────────────────────────────────────
