@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, ForbiddenException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, ConflictException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateJobDto, QueryJobsDto } from './dto/create-job.dto';
+import { DEFAULT_JOB_CATEGORIES, categoryLabelToSlug } from './job-categories.data';
 
 @Injectable()
 export class JobsService {
@@ -42,10 +43,49 @@ export class JobsService {
   }
 
   async getCategories() {
+    await this.ensureDefaultCategories();
     return this.prisma.jobCategory.findMany({
       orderBy: { label: 'asc' },
       include: { _count: { select: { jobs: true } } },
     });
+  }
+
+  async createCategory(label: string) {
+    const trimmed = label.trim();
+    if (!trimmed) throw new BadRequestException('Category name is required');
+
+    const slug = categoryLabelToSlug(trimmed);
+    if (!slug) throw new BadRequestException('Invalid category name');
+
+    const existing = await this.prisma.jobCategory.findFirst({
+      where: {
+        OR: [
+          { slug },
+          { label: { equals: trimmed, mode: 'insensitive' } },
+        ],
+      },
+      include: { _count: { select: { jobs: true } } },
+    });
+    if (existing) return existing;
+
+    return this.prisma.jobCategory.create({
+      data: { slug, label: trimmed, icon: 'briefcase' },
+      include: { _count: { select: { jobs: true } } },
+    });
+  }
+
+  private async ensureDefaultCategories() {
+    const count = await this.prisma.jobCategory.count();
+    if (count > 0) return;
+
+    for (const cat of DEFAULT_JOB_CATEGORIES) {
+      const slug = categoryLabelToSlug(cat.label);
+      await this.prisma.jobCategory.upsert({
+        where: { slug },
+        update: {},
+        create: { slug, label: cat.label, icon: cat.icon ?? 'briefcase' },
+      });
+    }
   }
 
   async getStats() {

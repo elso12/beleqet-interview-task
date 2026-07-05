@@ -6,6 +6,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser, CurrentUserPayload } from '../../common/decorators/current-user.decorator';
 import { JobsService } from './jobs.service';
 import { CreateJobDto, QueryJobsDto } from './dto/create-job.dto';
+import { CreateCategoryDto } from './dto/create-category.dto';
 
 @ApiTags('jobs')
 @Controller('jobs')
@@ -30,6 +31,15 @@ export class JobsController {
   @ApiOperation({ summary: 'Get all job categories' })
   getCategories() {
     return this.svc.getCategories();
+  }
+
+  @Post('categories')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('EMPLOYER', 'ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a new job category (employer)' })
+  createCategory(@Body() dto: CreateCategoryDto) {
+    return this.svc.createCategory(dto.label);
   }
 
   @Get('saved')

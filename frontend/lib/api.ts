@@ -168,6 +168,13 @@ export const api = {
 
   getCategories: () => apiFetch<ApiCategory[]>("/jobs/categories"),
 
+  createCategory: (token: string, label: string) =>
+    apiFetch<ApiCategory>("/jobs/categories", {
+      method: "POST",
+      headers: authHeaders(token),
+      body: JSON.stringify({ label }),
+    }),
+
   getStats: () => apiFetch<PlatformStats>("/jobs/stats"),
 
   register: (body: {

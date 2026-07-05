@@ -16,6 +16,11 @@ function PostJobForm() {
   const selectedPlan = searchParams.get("plan");
 
   const [categories, setCategories] = useState<ApiCategory[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categoriesError, setCategoriesError] = useState<string | null>(null);
+  const [showCustomCategory, setShowCustomCategory] = useState(false);
+  const [customCategoryLabel, setCustomCategoryLabel] = useState("");
+  const [addingCategory, setAddingCategory] = useState(false);
   const [hasCompany, setHasCompany] = useState<boolean | null>(null);
   const [companyName, setCompanyName] = useState("");
   const [companyLocation, setCompanyLocation] = useState("Addis Ababa");
@@ -45,13 +50,49 @@ function PostJobForm() {
       return;
     }
 
-    api.getCategories().then(setCategories).catch(() => {});
+    async function loadCategories() {
+      setCategoriesLoading(true);
+      setCategoriesError(null);
+      try {
+        const data = await api.getCategories();
+        setCategories(data);
+        if (data.length > 0) {
+          setCategoryId((current) => current || data[0].id);
+        }
+      } catch {
+        setCategoriesError("Could not load categories. Check your API connection.");
+      } finally {
+        setCategoriesLoading(false);
+      }
+    }
+
+    loadCategories();
 
     api
       .getCompany(token)
       .then((company) => setHasCompany(!!company))
       .catch(() => setHasCompany(false));
   }, [user, token, authLoading, router]);
+
+  async function handleAddCategory() {
+    if (!token || !customCategoryLabel.trim()) return;
+    setAddingCategory(true);
+    setCategoriesError(null);
+    try {
+      const created = await api.createCategory(token, customCategoryLabel.trim());
+      setCategories((prev) => {
+        const exists = prev.some((c) => c.id === created.id);
+        return exists ? prev : [...prev, created].sort((a, b) => a.label.localeCompare(b.label));
+      });
+      setCategoryId(created.id);
+      setCustomCategoryLabel("");
+      setShowCustomCategory(false);
+    } catch (err) {
+      setCategoriesError(err instanceof Error ? err.message : "Failed to add category");
+    } finally {
+      setAddingCategory(false);
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -189,19 +230,59 @@ function PostJobForm() {
 
         <div>
           <label className="text-xs font-semibold text-ink">Category</label>
-          <select
-            required
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            className="mt-1.5 w-full rounded-lg border border-border px-3 py-2.5 text-sm outline-none focus:border-brandGreen bg-white"
-          >
-            <option value="">Select category</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.label}
-              </option>
-            ))}
-          </select>
+          {categoriesLoading ? (
+            <p className="mt-1.5 text-sm text-muted flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading categories…
+            </p>
+          ) : (
+            <>
+              <select
+                required={!showCustomCategory}
+                value={showCustomCategory ? "__custom__" : categoryId}
+                onChange={(e) => {
+                  if (e.target.value === "__custom__") {
+                    setShowCustomCategory(true);
+                    setCategoryId("");
+                  } else {
+                    setShowCustomCategory(false);
+                    setCategoryId(e.target.value);
+                  }
+                }}
+                className="mt-1.5 w-full rounded-lg border border-border px-3 py-2.5 text-sm outline-none focus:border-brandGreen bg-white"
+              >
+                <option value="">Select category</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}
+                  </option>
+                ))}
+                <option value="__custom__">+ Add new category…</option>
+              </select>
+
+              {showCustomCategory && (
+                <div className="mt-3 flex gap-2">
+                  <input
+                    value={customCategoryLabel}
+                    onChange={(e) => setCustomCategoryLabel(e.target.value)}
+                    placeholder="e.g. Blockchain, Agriculture…"
+                    className="flex-1 rounded-lg border border-border px-3 py-2.5 text-sm outline-none focus:border-brandGreen"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddCategory}
+                    disabled={addingCategory || !customCategoryLabel.trim()}
+                    className="shrink-0 rounded-lg bg-brandGreen text-white text-sm font-semibold px-4 py-2.5 hover:bg-darkGreen disabled:opacity-60"
+                  >
+                    {addingCategory ? "Adding…" : "Add"}
+                  </button>
+                </div>
+              )}
+
+              {categoriesError && (
+                <p className="mt-2 text-xs text-redAccent">{categoriesError}</p>
+              )}
+            </>
+          )}
         </div>
 
         <div>
@@ -248,7 +329,7 @@ function PostJobForm() {
 
         <button
           type="submit"
-          disabled={loading || user.role !== "EMPLOYER" && user.role !== "ADMIN"}
+          disabled={loading || categoriesLoading || !categoryId || (user.role !== "EMPLOYER" && user.role !== "ADMIN")}
           className="w-full rounded-full bg-brandGreen text-white text-sm font-semibold py-3 hover:bg-darkGreen transition-colors disabled:opacity-60 flex items-center justify-center gap-2"
         >
           {loading && <Loader2 className="h-4 w-4 animate-spin" />}
