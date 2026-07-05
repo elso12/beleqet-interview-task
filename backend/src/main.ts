@@ -89,3 +89,12 @@ bootstrap().catch((err) => {
   if (err?.stack) console.error(err.stack);
   process.exit(1);
 });
+
+process.on('unhandledRejection', (reason) => {
+  const msg = String(reason);
+  if (msg.includes('Redis') || msg.includes('ECONNREFUSED') || msg.includes('ENOTFOUND')) {
+    console.warn('Redis queue warning (non-fatal):', msg);
+    return;
+  }
+  console.error('Unhandled rejection:', reason);
+});

@@ -13,15 +13,8 @@ if [ -z "$JWT_ACCESS_SECRET" ]; then
   exit 1
 fi
 
-if [ -z "$REDIS_URL" ] && [ -z "$REDIS_HOST" ]; then
-  echo "WARN: REDIS_URL / REDIS_HOST not set — queues may fail; set Upstash REDIS_URL"
-fi
-
 echo "Syncing database schema..."
 npx prisma db push --accept-data-loss
 
-echo "Seeding demo data..."
-npm run prisma:seed || echo "Seed skipped (may already exist)"
-
 echo "Starting API on port ${PORT:-4000}..."
-exec npm run start:prod
+exec node dist/main.js
