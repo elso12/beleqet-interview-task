@@ -16,5 +16,8 @@ fi
 echo "Syncing database schema..."
 npx prisma db push --accept-data-loss
 
+echo "Ensuring job categories exist..."
+node scripts/seed-categories.js || echo "Category seed warning (non-fatal)"
+
 echo "Starting API on port ${PORT:-4000}..."
 exec node dist/main.js

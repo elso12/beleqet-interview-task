@@ -6,6 +6,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthProvider";
 import { api, mapPlanSlug, type ApiCategory, type JobType } from "@/lib/api";
+import {
+  FALLBACK_JOB_CATEGORIES,
+  isPendingCategoryId,
+  pendingCategoryLabel,
+  toPendingCategoryId,
+} from "@/lib/jobCategories";
 
 const jobTypes: JobType[] = ["FULL_TIME", "PART_TIME", "REMOTE", "HYBRID", "CONTRACT"];
 
@@ -55,12 +61,28 @@ function PostJobForm() {
       setCategoriesError(null);
       try {
         const data = await api.getCategories();
-        setCategories(data);
         if (data.length > 0) {
+          setCategories(data);
           setCategoryId((current) => current || data[0].id);
+        } else {
+          // API empty (DB not seeded yet) — show fallbacks until backend seeds
+          const fallback = FALLBACK_JOB_CATEGORIES.map((label) => ({
+            id: toPendingCategoryId(label),
+            slug: label.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+            label,
+          }));
+          setCategories(fallback);
+          setCategoryId(fallback[0].id);
         }
       } catch {
-        setCategoriesError("Could not load categories. Check your API connection.");
+        const fallback = FALLBACK_JOB_CATEGORIES.map((label) => ({
+          id: toPendingCategoryId(label),
+          slug: label.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+          label,
+        }));
+        setCategories(fallback);
+        setCategoryId(fallback[0].id);
+        setCategoriesError("Using offline category list — will sync when you publish.");
       } finally {
         setCategoriesLoading(false);
       }
@@ -111,13 +133,20 @@ function PostJobForm() {
         setHasCompany(true);
       }
 
+      let resolvedCategoryId = categoryId;
+      if (isPendingCategoryId(categoryId)) {
+        const label = pendingCategoryLabel(categoryId);
+        const created = await api.createCategory(token, label);
+        resolvedCategoryId = created.id;
+      }
+
       const job = await api.createJob(token, {
         title,
         description,
         requirements: requirements || undefined,
         location,
         type,
-        categoryId,
+        categoryId: resolvedCategoryId,
         salaryMin: salaryMin ? Number(salaryMin) : undefined,
         salaryMax: salaryMax ? Number(salaryMax) : undefined,
         featured: selectedPlan === "featured",
