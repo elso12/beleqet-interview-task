@@ -22,8 +22,25 @@ async function bootstrap() {
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean);
+
   app.enableCors({
-    origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
+    origin: (origin, callback) => {
+      // Allow server-to-server, curl, and same-origin tools
+      if (!origin) {
+        callback(null, true);
+        return;
+      }
+      if (corsOrigins.includes(origin)) {
+        callback(null, true);
+        return;
+      }
+      // Vercel production + preview deployments
+      if (/^https:\/\/[\w-]+\.vercel\.app$/.test(origin)) {
+        callback(null, true);
+        return;
+      }
+      callback(new Error(`CORS blocked for origin: ${origin}`), false);
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   });
