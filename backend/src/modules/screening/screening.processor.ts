@@ -60,7 +60,7 @@ interface AiScoreResult {
 @Processor(QUEUE_NAMES.APPLICATION)
 export class ScreeningProcessor {
   private readonly logger = new Logger(ScreeningProcessor.name);
-  private readonly openai: OpenAI;
+  private readonly openai: OpenAI | null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -69,9 +69,14 @@ export class ScreeningProcessor {
     @InjectQueue(QUEUE_NAMES.NOTIFICATIONS) private readonly notificationsQueue: Queue,
     @InjectQueue(QUEUE_NAMES.ANALYTICS)    private readonly analyticsQueue: Queue,
   ) {
-    this.openai = new OpenAI({
-      apiKey: this.config.get<string>('OPENAI_API_KEY'),
-    });
+    const apiKey = this.config.get<string>('OPENAI_API_KEY');
+    const placeholder = !apiKey || apiKey === 'sk-...' || apiKey === 'dummy_key_for_testing';
+    if (placeholder) {
+      this.openai = null;
+      this.logger.warn('OPENAI_API_KEY not set — AI screening uses neutral fallback scores');
+    } else {
+      this.openai = new OpenAI({ apiKey });
+    }
   }
 
   // ── 1. AI Screening ──────────────────────────────────────────────────────
@@ -298,6 +303,16 @@ export class ScreeningProcessor {
     jobRequirements?: string;
     coverLetter?: string;
   }): Promise<AiScoreResult> {
+    if (!this.openai) {
+      return {
+        overallScore: 50,
+        skillScore: 50,
+        experienceScore: 50,
+        cultureFitScore: 50,
+        reasoning: 'AI screening disabled — manual review required.',
+      };
+    }
+
     const systemPrompt = `You are an expert HR screening assistant for an Ethiopian hiring platform called Beleqet.
 Your task is to score a job application on a scale of 0-100 across three dimensions.
 Always respond ONLY with valid JSON, no markdown fences, no preamble.`;
