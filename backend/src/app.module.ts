@@ -21,6 +21,7 @@ import { ChatModule } from './modules/chat/chat.module';
 import { UploadsModule } from './modules/uploads/uploads.module';
 import { TelegramModule } from './modules/telegram/telegram.module';
 import { ContactModule } from './modules/contact/contact.module';
+import { getRedisOptions } from './config/redis.config';
 
 @Module({
   imports: [
@@ -47,29 +48,15 @@ import { ContactModule } from './modules/contact/contact.module';
     // ── BullMQ (Redis-backed job queues) ───────────────────────────────────
     BullModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        const tlsFlag = config.get<string>('REDIS_TLS', 'false');
-        const useTls = tlsFlag === 'true' || tlsFlag === '1';
-
-        return {
-          redis: {
-            host: config.get<string>('REDIS_HOST', 'localhost'),
-            port: Number(config.get<string>('REDIS_PORT', '6379')),
-            password: config.get<string>('REDIS_PASSWORD') || undefined,
-            tls: useTls ? {} : undefined,
-            // Required for Bull + managed Redis (Upstash, Render)
-            maxRetriesPerRequest: null,
-            enableReadyCheck: false,
-            connectTimeout: 10_000,
-          },
-          defaultJobOptions: {
-            removeOnComplete: 100,
-            removeOnFail: 200,
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 2_000 },
-          },
-        };
-      },
+      useFactory: (config: ConfigService) => ({
+        redis: getRedisOptions(config),
+        defaultJobOptions: {
+          removeOnComplete: 100,
+          removeOnFail: 200,
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 2_000 },
+        },
+      }),
     }),
 
     // ── Feature modules ────────────────────────────────────────────────────

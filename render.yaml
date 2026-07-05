@@ -18,6 +18,8 @@ services:
         fromDatabase:
           name: beleqet-db
           property: connectionString
+      - key: REDIS_URL
+        sync: false
       - key: REDIS_HOST
         sync: false
       - key: REDIS_PORT
